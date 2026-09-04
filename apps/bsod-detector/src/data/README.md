@@ -60,6 +60,26 @@ with the `blkdebug-config` chaos trigger (requires manual domain XML
 setup with `qemu:commandline` namespace).
 - **Consumers:** manual QEMU configuration for advanced chaos testing.
 
+## Staging: host-side vs guest-side
+
+Not every table needs to live on the guest. Classifying them keeps the guest
+footprint minimal (and matters for the offline-collection direction, where the
+guest should carry no tool data at all):
+
+| File | Staged on guest? | Rationale |
+|---|---|---|
+| `crash-control.json` | **Yes** | `configure-dumps.ps1` applies it inside the guest |
+| `event-sources.json` | **Yes** | the guest collector builds the crash timeline from it |
+| `bugcheck-codes.json` | **Yes** | the guest collector resolves code -> name; also used host-side (parser, host-signals cross-ref) |
+| `trigger-methods.json` | **No** | host-only: `sweep-crashme.sh` reads it |
+| `chaos-triggers.json` | **No** | host-only: `sweep-chaos.sh` reads it |
+| `host-signals.json` | **No** | host-only: `collect-host-signals.sh` reads it |
+| `blkdebug-read-errors.conf` | **No** | host-only: QEMU configuration |
+
+Only the three **Yes** files need to be present in the guest. If guest-side
+collection is ever replaced by offline (`guestfs`) extraction, even those move
+host-side and the guest carries no data at all.
+
 ## Validation
 
 Keep JSON valid and cross-references intact:
