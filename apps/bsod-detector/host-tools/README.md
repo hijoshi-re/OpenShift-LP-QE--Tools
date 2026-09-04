@@ -6,8 +6,8 @@ reproducible and does not install libguestfs/qemu tooling directly on the host.
 ## Why a container
 
 On a **Linux/KVM** host, the host-side job from
-[`../docs/tool-selection.md`](../docs/tool-selection.md) ("mount the guest VHDX
-to pull MEMORY.DMP when the guest won't boot") maps to: open the guest **qcow2**
+[`../docs/development-notes.md`](../docs/development-notes.md#what-the-tools-gather-by-perspective)
+("mount the guest VHDX to pull MEMORY.DMP when the guest won't boot") maps to: open the guest **qcow2**
 offline with **libguestfs** and copy the dumps out of the NTFS filesystem. The
 image bundles libguestfs, qemu-img, and libvirt-client for that purpose.
 

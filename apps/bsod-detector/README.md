@@ -70,8 +70,10 @@ apps/bsod-detector/
 │   └── test-driver/       # KeBugCheckEx kernel driver (cross-compiled with mingw64)
 ├── test/                  # bats unit test suite (run-tests.sh)
 ├── docs/                  # Design notes and usage
-│   ├── integration.md     # CI/CD and agentic integration guide
-│   └── tool-selection.md
+│   ├── architecture.md            # Big-picture overview (shared hub)
+│   ├── development-notes.md       # Design rationale + tool-selection + what-to-gather
+│   ├── integration.md             # CI/CD and agentic integration guide
+│   └── natural-bsod-workflow.md   # Runbook: detect a naturally-occurring BSOD
 ├── vm/                    # Test VM definition + management (libvirt/KVM)
 │   └── README.md          # Golden VM, snapshots, and one-command test loop
 └── .gitignore             # Ignores build artifacts, output, and secrets
