@@ -3,7 +3,7 @@
 > Runbook for detecting a **naturally-occurring** Windows BSOD/freeze on an
 > OpenShift Virtualization (KubeVirt) VM and auto-capturing evidence — **with no
 > deliberate trigger**. For the deliberate-crash path (validating the detector)
-> see [`../src/scripts/crash-injector/README.md`](../src/scripts/crash-injector/README.md)
+> see [`../src/scripts/host/crash-injector/README.md`](../src/scripts/host/crash-injector/README.md)
 > (the "Pitcher"). For CI/agent integration patterns see
 > [`integration.md`](integration.md).
 
@@ -12,12 +12,26 @@
 Use this flow for crashes that happen **on their own** — e.g. the Intel
 split-lock `#AC` during the Hyper-V enlightened TLB-flush hypercall
 (`HYPERVISOR_ERROR 0x00020001`), or any organic fault (see
-[`../src/data/chaos-triggers.json`](../src/data/chaos-triggers.json)). Nothing
+[`../src/data/host/chaos-triggers.json`](../src/data/host/chaos-triggers.json)). Nothing
 is injected; you *watch* a live VM and capture the moment it crashes.
 
-The single entry point is [`../src/scripts/watch-crash.sh`](../src/scripts/watch-crash.sh).
-It uses the **qemu-guest-agent** (no SSH) and auto-detects the VMI when there is
+The single entry point is [`../src/scripts/host/stakeout.sh`](../src/scripts/host/stakeout.sh),
+which runs the campaign end to end: **preflight → stage → watch → escalate →
+verdict**. It delegates detection to
+[`watch-crash.sh`](../src/scripts/host/watch-crash.sh) (still usable standalone)
+and adds the two things a bare watch cannot do — gating on the preconditions
+before you commit to a long watch, and recovering evidence from a hard freeze.
+Both use the **qemu-guest-agent** (no SSH) and auto-detect the VMI when there is
 exactly one on the cluster.
+
+```bash
+./src/scripts/host/stakeout.sh preflight --scenario tlb-flush
+./src/scripts/host/stakeout.sh stage
+./src/scripts/host/stakeout.sh watch --out ./output/natural
+```
+
+The step-by-step walkthrough, including what each preflight check gates on, is
+in [`file-guide.md`](file-guide.md#6-step-by-step--natural-bsod-kind-3).
 
 ## Prerequisites
 
@@ -30,10 +44,10 @@ exactly one on the cluster.
 **Guest (one-time staging, so post-reboot collection works):**
 - `qemu-guest-agent` installed and running in the Windows guest
 - Toolkit staged in the guest via
-  [`stage-toolkit.ps1`](../src/scripts/stage-toolkit.ps1) (needed for the
+  [`stage-toolkit.ps1`](../src/scripts/guest/stage-toolkit.ps1) (needed for the
   `collect-guest.ps1` step)
 - Crash dump configured via
-  [`configure-dumps.ps1`](../src/scripts/configure-dumps.ps1) (or
+  [`configure-dumps.ps1`](../src/scripts/guest/configure-dumps.ps1) (or
   `crash-injector/prep-guest.ps1`) so a dump is written on the next BSOD —
   `CrashControl` set to a kernel/complete dump, system-managed page file
 
@@ -43,7 +57,7 @@ exactly one on the cluster.
 export KUBECONFIG=<cluster kubeconfig>
 
 # Watch (auto-detects the single VMI; pass --ns/--vm only to disambiguate):
-./src/scripts/watch-crash.sh \
+./src/scripts/host/watch-crash.sh \
     [--ns <namespace>] [--vm <name>] \
     [--out <evidence-dir>] \
     [--interval 5]      # seconds between guest-agent health polls
@@ -94,7 +108,7 @@ falls back through three tiers — this is why the detector catches them at all:
 When the guest won't reboot, recover the dump off the disk from the host:
 
 ```
-./src/scripts/collect-from-host.sh --vm <name> --mode recover [--out <dir>]
+./src/scripts/host/collect-from-host.sh --vm <name> --mode recover [--out <dir>]
 #   --mode detect   report guest state only (no disk access)
 #   --mode recover  detect, then pull MEMORY.DMP / Minidump\*.dmp offline
 #                   (libguestfs via host-tools/extract-dump.sh)
@@ -122,7 +136,8 @@ analyze-dump.ps1 -DumpPath <MEMORY.DMP or minidump>
 
 ## Related
 
+- [`file-guide.md`](file-guide.md) — what every file does; the natural vs organic vs synthetic crash distinction
 - [`integration.md`](integration.md) — CI post-mortem, agent-driven triage, exit codes, decision tree
 - [`architecture.md`](architecture.md) — component overview
 - [`../src/scripts/README.md`](../src/scripts/README.md) — per-script catalog + JSON contracts
-- [`../src/data/chaos-triggers.json`](../src/data/chaos-triggers.json) — organic trigger definitions (for validation)
+- [`../src/data/host/chaos-triggers.json`](../src/data/host/chaos-triggers.json) — organic trigger definitions (for validation)

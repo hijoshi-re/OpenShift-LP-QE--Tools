@@ -123,7 +123,7 @@ driver.
 ```bash
 # From the host, sweep all 19 defined codes:
 export LIBVIRT_DEFAULT_URI=qemu:///system
-./src/scripts/crash-injector/sweep-crashme.sh
+./src/scripts/host/crash-injector/sweep-crashme.sh
 
 # Or drive a single code manually:
 # 1. Revert to known-good state
@@ -260,7 +260,7 @@ recovers the raw dump files.
 
 ### Guest prerequisites (one-time setup)
 
-These are set by `src/scripts/crash-injector/prep-guest.ps1` and baked into the `clean-baseline` snapshot:
+These are set by `src/scripts/host/crash-injector/prep-guest.ps1` and baked into the `clean-baseline` snapshot:
 
 | Setting | Value | Why |
 |---|---|---|
@@ -278,7 +278,7 @@ These are set by `src/scripts/crash-injector/prep-guest.ps1` and baked into the 
   `podman build -t bsod-host-tools -f image/container/bsod-detector/Dockerfile apps/bsod-detector`
 - The guest disk must be **readable** by the invoking user and the VM **shut off**.
 
-**Guest script deployment:** Copy `src/scripts/collect-guest.ps1` (and its `lib/` directory) to `C:\bsod-detector\scripts` on the guest, and `src/data/` to `C:\bsod-detector\data`, before the test run. The CI example above assumes this layout.
+**Guest script deployment:** Copy `src/scripts/guest/collect-guest.ps1` (and its `lib/` directory) to `C:\bsod-detector\scripts` on the guest, and `src/data/` to `C:\bsod-detector\data`, before the test run. The CI example above assumes this layout.
 
 ---
 
@@ -304,10 +304,10 @@ secrets, credentials, or PII.
 ## Validated crash types
 
 All 19 bug-check codes in
-[`data/trigger-methods.json`](../src/data/trigger-methods.json) have been verified
+[`data/host/trigger-methods.json`](../src/data/host/trigger-methods.json) have been verified
 end-to-end on Windows Server 2025 (build 26100) with Driver Verifier enabled.
-All use the KeBugCheckEx test driver (`src/scripts/crash-injector/test-driver/crashme.sys`) invoked via
-`src/scripts/crash-injector/sweep-crashme.sh`.
+All use the KeBugCheckEx test driver (`src/scripts/host/crash-injector/test-driver/crashme.sys`) invoked via
+`src/scripts/host/crash-injector/sweep-crashme.sh`.
 
 | Code | Name |
 |---|---|

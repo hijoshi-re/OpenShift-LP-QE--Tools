@@ -70,7 +70,7 @@ json.dump({'code': norm, 'params': params}, sys.stdout)
   python3 -c "
 import re, json, sys
 
-with open('$DATA_DIR/trigger-methods.json') as f:
+with open('$DATA_HOST_DIR/trigger-methods.json') as f:
     codes = json.load(f)['codes']
 
 pattern = r'bugcheck was:\s*(0x[0-9a-fA-F]{8})\s*\(([^)]*)\)'

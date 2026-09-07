@@ -11,7 +11,7 @@ On a **Linux/KVM** host, the host-side job from
 offline with **libguestfs** and copy the dumps out of the NTFS filesystem. The
 image bundles libguestfs, qemu-img, and libvirt-client for that purpose.
 
-> The `src/scripts/collect-from-host.ps1` script targets a **Hyper-V** host
+> The `src/scripts/host/collect-from-host.ps1` script targets a **Hyper-V** host
 > (Mount-VHD / LiveKd). This container is the **Linux/KVM** equivalent for the
 > actual host we run on. Both do the same job from their respective host OS.
 

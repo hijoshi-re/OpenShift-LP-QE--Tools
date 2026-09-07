@@ -6,7 +6,7 @@
 # (event logs, dumps, system context), and host-side signals (kernel log,
 # hypervisor config).
 #
-# Invoked by test harnesses (src/scripts/crash-injector/run-dry-run.sh) or by a CI post-step after any
+# Invoked by test harnesses (src/scripts/host/crash-injector/run-dry-run.sh) or by a CI post-step after any
 # test run that may have triggered a BSOD.
 #
 # Usage:
@@ -24,14 +24,14 @@ exec {BASH_XTRACEFD}>/dev/null
 set -euxo pipefail; shopt -s inherit_errexit
 
 typeset scriptDir; scriptDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-typeset repoRoot; repoRoot="$(cd "${scriptDir}/../.." && pwd)"
+typeset repoRoot; repoRoot="$(cd "${scriptDir}/../../.." && pwd)"
 
 export LIBVIRT_DEFAULT_URI="${LIBVIRT_DEFAULT_URI:-qemu:///system}"
 
 typeset vm=""
 typeset outDir=""
 typeset sshCmd=""
-typeset guestScripts='C:/bsod-detector/scripts'
+typeset guestScripts='C:/bsod-detector/src/scripts/guest'
 typeset timeout=300
 
 while [[ $# -gt 0 ]]; do

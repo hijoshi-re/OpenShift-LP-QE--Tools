@@ -3,10 +3,10 @@ exec {BASH_XTRACEFD}>/dev/null
 set -euxo pipefail; shopt -s inherit_errexit
 
 export LIBVIRT_DEFAULT_URI=qemu:///system
-typeset repoDir=''; repoDir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+typeset repoDir=''; repoDir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
 cd "${repoDir}"
 
-typeset triggerFile="${repoDir}/src/data/chaos-triggers.json"
+typeset triggerFile="${repoDir}/src/data/host/chaos-triggers.json"
 [[ -f "${triggerFile}" ]] || { : "chaos-triggers.json not found at ${triggerFile}"; exit 2; }
 
 typeset vmName="${VM_NAME:-bsod-test}"
@@ -31,7 +31,7 @@ function WaitSsh () {
   typeset -i maxAttempts="${1:-30}"
   typeset -i i=0
   while ((i < maxAttempts)); do
-    if ./vm/guest-ssh.sh -c '"up"' 2>/dev/null | grep -q up; then
+    if ./src/scripts/host/guest-ssh.sh -c '"up"' 2>/dev/null | grep -q up; then
       return 0
     fi
     sleep 8
@@ -77,14 +77,14 @@ function CollectGuestEvidence () {
   mkdir -p "${chaosDir}"
 
   typeset json=""
-  json=$(./vm/guest-ssh.sh -c "& C:\\bsod-detector\\scripts\\collect-guest.ps1 -OutputDir C:\\bsod-detector\\output\\chaos-${triggerId}" 2>&1) || true
+  json=$(./src/scripts/host/guest-ssh.sh -c "& C:\\bsod-detector\\src\\scripts\\guest\\collect-guest.ps1 -OutputDir C:\\bsod-detector\\output\\chaos-${triggerId}" 2>&1) || true
   if [[ -n "${json}" ]]; then
     echo "${json}" > "${chaosDir}/collect-guest.json"
   else
     echo '{"ok":false,"warnings":["collect-guest.ps1 produced no output"]}' > "${chaosDir}/collect-guest.json"
   fi
 
-  ./src/scripts/collect-host-signals.sh --vm "${vmName}" > "${chaosDir}/host-signals.json" 2>/dev/null || true
+  ./src/scripts/host/collect-host-signals.sh --vm "${vmName}" > "${chaosDir}/host-signals.json" 2>/dev/null || true
   true
 }
 
@@ -105,7 +105,7 @@ function CollectHostOfflineEvidence () {
       > "${chaosDir}/host-extract.json"
   fi
 
-  ./src/scripts/collect-host-signals.sh --vm "${vmName}" > "${chaosDir}/host-signals.json" 2>/dev/null || true
+  ./src/scripts/host/collect-host-signals.sh --vm "${vmName}" > "${chaosDir}/host-signals.json" 2>/dev/null || true
   true
 }
 
@@ -374,7 +374,7 @@ function ExecuteMsrWrite () {
   while IFS= read -r line; do
     typeset reg=''; reg=$(echo "${line}" | python3 -c "import json,sys; print(json.load(sys.stdin)['register'])")
     typeset val=''; val=$(echo "${line}" | python3 -c "import json,sys; print(json.load(sys.stdin)['value'])")
-    sudo python3 "${repoDir}/vm/kvm-msr-write.py" \
+    sudo python3 "${repoDir}/src/scripts/host/crash-injector/kvm-msr-write.py" \
       --vm "${vmName}" --vcpu 0 --msr "${reg}" --value "${val}" 2>&1
   done < <(echo "${triggerJson}" | python3 -c "
 import json, sys
@@ -462,7 +462,7 @@ function RunTrigger () {
   typeset -i workloadPid=0
   if [[ -n "${guestWorkload}" ]]; then
     : "[${triggerId}] starting guest workload"
-    ./vm/guest-ssh.sh -c "${guestWorkload}" 2>/dev/null &
+    ./src/scripts/host/guest-ssh.sh -c "${guestWorkload}" 2>/dev/null &
     workloadPid=$!
     sleep 5
   fi
@@ -527,7 +527,7 @@ function RunTrigger () {
       : "[${triggerId}] domain preserved; attempting host-side elf2dmp"
       typeset chaosDir="output/chaos-${triggerId}"
       mkdir -p "${chaosDir}"
-      "${repoDir}/src/scripts/capture-host-dump.sh" --vm "${vmName}" --out "${chaosDir}" \
+      "${repoDir}/src/scripts/host/capture-host-dump.sh" --vm "${vmName}" --out "${chaosDir}" \
         > "${chaosDir}/capture-host-dump.json" 2>&1 || true
 
       : "[${triggerId}] destroying and restarting domain"
@@ -598,10 +598,10 @@ function PrepSnapshots () {
     fi
 
     : "[prep] setting verifier flags to ${flags}"
-    ./vm/guest-ssh.sh -c "verifier /flags ${flags} /all" 2>&1 || true
+    ./src/scripts/host/guest-ssh.sh -c "verifier /flags ${flags} /all" 2>&1 || true
 
     : "[prep] rebooting guest to activate verifier"
-    ./vm/guest-ssh.sh -c "Restart-Computer -Force" 2>&1 || true
+    ./src/scripts/host/guest-ssh.sh -c "Restart-Computer -Force" 2>&1 || true
     sleep 30
 
     if ! WaitSsh 30; then

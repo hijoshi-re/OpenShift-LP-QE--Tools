@@ -13,9 +13,9 @@ When Windows hits a BSOD, capture and persist everything useful for root-cause a
 - Basic system context (OS build, uptime, recent driver/update changes)
 
 Detection is **implicit**: the collector catches any bug-check code that occurs,
-not just a pre-defined set. The `src/data/trigger-methods.json` file defines the
+not just a pre-defined set. The `src/data/host/trigger-methods.json` file defines the
 19 codes we deliberately exercise in CI using the KeBugCheckEx test driver.
-The `src/data/chaos-triggers.json` file defines 12 organic fault injection
+The `src/data/host/chaos-triggers.json` file defines 12 organic fault injection
 triggers (NMI, memory balloon, device hot-remove, Driver Verifier stress, block
 I/O throttle, Hyper-V enlightenment permutation) that produce real BSODs through
 actual failure conditions.
@@ -41,11 +41,11 @@ Deterministic operations live in scripts with clear stdin/stdout contracts.
 
 ## Quick start
 
-Run the full verification sweep (requires the test VM; see [`src/scripts/crash-injector/README.md`](src/scripts/crash-injector/README.md)):
+Run the full verification sweep (requires the test VM; see [`src/scripts/host/crash-injector/README.md`](src/scripts/host/crash-injector/README.md)):
 
 ```bash
 export LIBVIRT_DEFAULT_URI=qemu:///system
-./src/scripts/crash-injector/sweep-crashme.sh
+./src/scripts/host/crash-injector/sweep-crashme.sh
 ```
 
 Run the unit test suite (no VM needed):
@@ -58,24 +58,35 @@ Or use the scripts individually in your own pipeline; see
 [**docs/integration.md**](docs/integration.md) for CI/CD patterns, JSON
 contracts, the safety model, and agentic usage.
 
+**New here, or not sure which script to run?** Start with
+[**docs/file-guide.md**](docs/file-guide.md) — what every file does, the
+guest/host and Catcher/Pitcher split, and step-by-step run guides for both a
+naturally-occurring BSOD and a deliberately triggered one.
+
 ## Layout
 
 ```
 apps/bsod-detector/
 ├── README.md              # This file
 ├── src/
-│   ├── scripts/           # Collection and configuration scripts (PowerShell + Bash)
+│   ├── scripts/           # Executable tooling, split by WHERE it runs
+│   │   ├── guest/         #   inside the Windows VM (PowerShell)
+│   │   ├── host/          #   on the Linux host / hypervisor (Bash, Python)
+│   │   │   └── crash-injector/  # destructive: intentionally crash a test VM
+│   │   ├── lib/           #   shared by both (Common.ps1)
 │   │   └── README.md      # Script catalog: purpose, inputs, output shape
-│   ├── data/              # Source-of-truth lookups (bug-check codes, log sources, chaos triggers)
-│   └── test-driver/       # KeBugCheckEx kernel driver (cross-compiled with mingw64)
+│   └── data/              # Source-of-truth lookups, split the same way
+│       ├── guest/         #   staged into the VM
+│       ├── host/          #   never staged into the VM
+│       └── bugcheck-codes.json   # shared by both sides
 ├── test/                  # bats unit test suite (run-tests.sh)
+├── host-tools/            # Containerized libguestfs offline dump extraction
 ├── docs/                  # Design notes and usage
 │   ├── architecture.md            # Big-picture overview (shared hub)
+│   ├── file-guide.md              # What every file does + step-by-step run guides
 │   ├── development-notes.md       # Design rationale + tool-selection + what-to-gather
 │   ├── integration.md             # CI/CD and agentic integration guide
 │   └── natural-bsod-workflow.md   # Runbook: detect a naturally-occurring BSOD
-├── vm/                    # Test VM definition + management (libvirt/KVM)
-│   └── README.md          # Golden VM, snapshots, and one-command test loop
 └── .gitignore             # Ignores build artifacts, output, and secrets
 ```
 

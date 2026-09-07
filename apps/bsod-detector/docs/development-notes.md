@@ -38,9 +38,9 @@ which bug-check code and parameters are used.
 Operationally, the driver is loaded as a kernel service
 (`sc.exe create CrashMe type= kernel`) and fired from user mode with
 `crashme-ctl.exe <code> <p1> <p2> <p3> <p4>`; the code-to-parameters mapping
-lives in [`../src/data/trigger-methods.json`](../src/data/trigger-methods.json).
+lives in [`../src/data/host/trigger-methods.json`](../src/data/host/trigger-methods.json).
 Full run steps are in
-[`../src/scripts/crash-injector/README.md`](../src/scripts/crash-injector/README.md).
+[`../src/scripts/host/crash-injector/README.md`](../src/scripts/host/crash-injector/README.md).
 
 ### The tradeoff, stated plainly
 
@@ -103,9 +103,9 @@ This changes observed crash behavior: a KeBugCheckEx call with code `0x0A`
 (DRIVER_IRQL_NOT_LESS_OR_EQUAL) because Verifier catches the violation at a
 different point in the call stack.
 
-The `src/data/trigger-methods.json` file records codes **as observed** with
+The `src/data/host/trigger-methods.json` file records codes **as observed** with
 Verifier enabled and marks each entry `"verified": true`. If Verifier is disabled,
-the observed codes will differ; re-run `src/scripts/crash-injector/sweep-crashme.sh` to re-baseline.
+the observed codes will differ; re-run `src/scripts/host/crash-injector/sweep-crashme.sh` to re-baseline.
 
 ## Snapshot-based testing methodology
 
@@ -203,7 +203,7 @@ guest/host split is in [`architecture.md`](architecture.md); this section is the
 - **Prerequisite:** the dump type must be configured *before* a crash
   (registry `CrashControl` -> complete/kernel/automatic/minidump) with an
   adequate page file, or there is nothing to capture. See
-  [`../src/data/crash-control.json`](../src/data/crash-control.json).
+  [`../src/data/guest/crash-control.json`](../src/data/guest/crash-control.json).
 
 ### From the host / hypervisor (a crashed guest may be frozen or rebooting)
 
@@ -212,14 +212,14 @@ guest/host split is in [`architecture.md`](architecture.md); this section is the
 - **Mount the guest qcow2 from the host** (via libguestfs / `host-tools/`) to
   pull `MEMORY.DMP` even when the guest will not boot. Most robust recovery route.
 - **Host kernel-log + VM-config signals** (via
-  [`../src/scripts/collect-host-signals.sh`](../src/scripts/collect-host-signals.sh))
+  [`../src/scripts/host/collect-host-signals.sh`](../src/scripts/host/collect-host-signals.sh))
   — some root causes never appear in the guest dump. For example,
   `HYPERVISOR_ERROR` (0x20001) can be caused by an Intel split-lock `#AC` trap
   during a Hyper-V enlightened TLB-flush hypercall; the only evidence is the host
   kernel log (`x86/split lock detection: #AC ...`) correlated with the guest's
   Hyper-V `tlbflush`/`ipi` enlightenments in the libvirt domain XML. Patterns and
   feature list live in
-  [`../src/data/host-signals.json`](../src/data/host-signals.json).
+  [`../src/data/host/host-signals.json`](../src/data/host/host-signals.json).
 
 ### Deep dump analysis (symbolized)
 

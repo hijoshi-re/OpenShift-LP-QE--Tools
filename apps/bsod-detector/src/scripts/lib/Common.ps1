@@ -23,11 +23,21 @@ $script:DataDir  = Join-Path $script:RepoRoot 'src\data'
 function Get-BsodData {
     <#
     .SYNOPSIS Load a source-of-truth JSON file from data/.
-    .PARAMETER Name File name under data/, e.g. 'bugcheck-codes.json'.
+    .DESCRIPTION
+        data/ is split by staging side: guest-staged tables live in data/guest/,
+        host-only tables in data/host/, and tables both sides need (bugcheck-codes)
+        stay at the data/ root. Callers pass just the file name and this resolves
+        it across those locations, so the split is invisible to them.
+    .PARAMETER Name File name, e.g. 'bugcheck-codes.json' or 'crash-control.json'.
     #>
     param([Parameter(Mandatory)][string]$Name)
-    $path = Join-Path $script:DataDir $Name
-    if (-not (Test-Path $path)) { throw "Data file not found: $path" }
+    $candidates = @(
+        (Join-Path $script:DataDir $Name)
+        (Join-Path (Join-Path $script:DataDir 'guest') $Name)
+        (Join-Path (Join-Path $script:DataDir 'host') $Name)
+    )
+    $path = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (-not $path) { throw "Data file not found: $Name (searched: $($candidates -join ', '))" }
     Get-Content -Raw -Path $path | ConvertFrom-Json
 }
 

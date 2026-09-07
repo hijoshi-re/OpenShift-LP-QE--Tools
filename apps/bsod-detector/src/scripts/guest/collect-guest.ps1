@@ -66,7 +66,7 @@ param(
     [switch]$Symbolize
 )
 
-. "$PSScriptRoot\lib\Common.ps1"
+. "$PSScriptRoot\..\lib\Common.ps1"
 
 $warnings = New-Object System.Collections.Generic.List[string]
 

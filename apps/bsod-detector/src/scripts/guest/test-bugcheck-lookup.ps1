@@ -25,7 +25,7 @@
 [CmdletBinding()]
 param()
 
-. "$PSScriptRoot\lib\Common.ps1"
+. "$PSScriptRoot\..\lib\Common.ps1"
 
 $codes = (Get-BsodData 'bugcheck-codes.json').codes
 $results = New-Object System.Collections.Generic.List[object]

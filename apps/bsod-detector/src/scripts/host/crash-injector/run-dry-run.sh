@@ -5,14 +5,14 @@
 #   1. (optional) revert the guest to the crashme-installed snapshot
 #   2. start the guest and wait for SSH
 #   3. trigger a BSOD via the CrashMe driver with a specified code
-#   4. delegate to src/scripts/collect-all.sh for evidence collection
+#   4. delegate to src/scripts/host/collect-all.sh for evidence collection
 #   5. print summary
 #
-# All guest interaction goes through src/scripts/guest-ssh.sh (SSH key auth). Never
+# All guest interaction goes through src/scripts/host/guest-ssh.sh (SSH key auth). Never
 # point this at anything but a disposable/snapshotted test VM.
 #
 # Usage:
-#   src/scripts/crash-injector/run-dry-run.sh [--code <hex>] [--no-revert] [--out <dir>]
+#   src/scripts/host/crash-injector/run-dry-run.sh [--code <hex>] [--no-revert] [--out <dir>]
 #
 # Defaults: code=0x19 (BAD_POOL_HEADER), revert=yes,
 #           out=<repo>/output/dryrun-<timestamp>
@@ -20,9 +20,9 @@ set -euxo pipefail; shopt -s inherit_errexit
 
 export LIBVIRT_DEFAULT_URI="${LIBVIRT_DEFAULT_URI:-qemu:///system}"
 typeset here; here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-typeset repo; repo="$(cd "${here}/../../.." && pwd)"   # crash-injector -> scripts -> src -> app root
+typeset repo; repo="$(cd "${here}/../../../.." && pwd)"   # crash-injector -> scripts -> src -> app root
 typeset vmName="${VM_NAME:-bsod-test}"
-typeset gssh="${repo}/src/scripts/guest-ssh.sh"
+typeset gssh="${repo}/src/scripts/host/guest-ssh.sh"
 typeset snapshot="${SNAPSHOT:-crashme-installed}"
 
 typeset code="0x19"
@@ -46,7 +46,7 @@ function Log () { echo "[dry-run] $*" >&2; true; }
 function LookupParams () {
   python3 -c "
 import json, sys
-tm = json.load(open('${repo}/src/data/trigger-methods.json'))['codes']
+tm = json.load(open('${repo}/src/data/host/trigger-methods.json'))['codes']
 code = sys.argv[1].upper().replace('0X', '0x')
 if not code.startswith('0x'):
     code = '0x' + code
@@ -92,7 +92,7 @@ Log "triggering BSOD: ${codeNorm} ${params}"
 
 # --- Delegate all evidence collection to the detector ---
 Log "collecting evidence via collect-all.sh"
-"${repo}/src/scripts/collect-all.sh" \
+"${repo}/src/scripts/host/collect-all.sh" \
   --vm "${vmName}" \
   --out "${out}" \
   --ssh "${gssh}"

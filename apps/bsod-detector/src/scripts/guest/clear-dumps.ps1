@@ -12,7 +12,7 @@
 
     Runs on: the GUEST VM. Requires elevation.
 #>
-. "$PSScriptRoot\lib\Common.ps1"
+. "$PSScriptRoot\..\lib\Common.ps1"
 # Common.ps1 sets ErrorActionPreference=Stop; we want removals of absent dumps to
 # stay quiet, so relax it here (after dot-sourcing) and guard each removal.
 $ErrorActionPreference='SilentlyContinue'

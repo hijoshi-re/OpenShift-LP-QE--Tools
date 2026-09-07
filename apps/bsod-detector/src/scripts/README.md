@@ -1,37 +1,54 @@
 # Scripts
 
-Catalog of executable tooling. The directory contains both PowerShell 5.1+ (Windows guest-side) and Bash 4+ (Linux host-side) scripts. Each collector and analysis script does one job, takes well-defined inputs, and writes **exactly one JSON object** to stdout (the consumer contract). Helper scripts like `capture-vm-screen.sh` that produce file artifacts instead of JSON are excluded from this contract. Diagnostic chatter goes to the information/error streams, never stdout.
+Catalog of executable tooling. The directory contains both PowerShell 5.1+ (Windows guest-side) and Bash 4+ (Linux host-side) scripts. Each collector and analysis script does one job, takes well-defined inputs, and writes **exactly one JSON object** to stdout (the consumer contract). Helper scripts like `host/capture-vm-screen.sh` that produce file artifacts instead of JSON are excluded from this contract. Diagnostic chatter goes to the information/error streams, never stdout.
 
 All scripts read their lookup tables from [`../data/`](../data/README.md); no table is duplicated inside a script. Tool selection rationale is in [`../../docs/development-notes.md`](../../docs/development-notes.md#what-the-tools-gather-by-perspective).
 
+> This page is the **reference** (per-script inputs and exact JSON contracts).
+> If you are trying to work out *which* script to run and in what order, read
+> [`../../docs/file-guide.md`](../../docs/file-guide.md) first.
+
 ## Layout
 
-- **This folder** is *The Catcher*: detect / capture / analyze a real,
+Scripts are split by **where they execute**, not by language — a file extension
+is not a reliable signal (`host/collect-from-host.ps1` is PowerShell that runs on
+a Hyper-V *host*, not in the guest):
+
+| Directory | Runs on | Contents |
+|---|---|---|
+| [`guest/`](guest/) | inside the **Windows guest** | dump configuration/collection and in-guest analysis (`collect-guest.ps1`, `configure-dumps.ps1`, `analyze-dump.ps1`, …) |
+| [`host/`](host/) | the **Linux host / hypervisor** (or a Hyper-V host for `collect-from-host.ps1`) | orchestration, capture and host-side analysis (`collect-all.sh`, `parse-dump-header.sh`, `collect-host-signals.sh`, `vmctl.sh`, `guest-agent.py`, …) |
+| [`lib/`](lib/) | **both** | `Common.ps1`, dot-sourced by guest *and* host PowerShell — deliberately not under either side |
+
+Within those:
+
+- **`host/`** is *The Catcher*: detect / capture / analyze a real,
   naturally-occurring BSOD/freeze on an OCP KubeVirt VM, plus the shared
   access/lifecycle helpers (`guest-agent.py`, `guest-ssh.sh`, `vmctl.sh`).
-- **[`crash-injector/`](crash-injector/README.md)** is *The Pitcher*: destructive,
+- **[`host/crash-injector/`](host/crash-injector/README.md)** is *The Pitcher*: destructive,
   test-only scripts that intentionally crash a disposable guest to validate the
-  Catcher. Never point them at production.
+  Catcher. Never point them at production. It sits under `host/` because the sweep
+  loops are host-orchestrated; the `.ps1` payloads it ships are executed *in the guest*.
 - A per-file catalog lives in [`../../MANIFEST.md`](../../MANIFEST.md).
 
 ## Pipeline
 
 Typical test run (guest unless noted):
 
-1. `configure-dumps.ps1` — set `CrashControl` so a dump gets written (prerequisite).
+1. `guest/configure-dumps.ps1` — set `CrashControl` so a dump gets written (prerequisite).
 2. Trigger via CrashMe driver (`crashme-ctl.exe <code> <p1> <p2> <p3> <p4>`) or via
-   chaos fault injection (`vm/sweep-chaos.sh`).
-3. After reboot, `collect-guest.ps1` — pull dumps, events, context.
-4. `collect-from-host.ps1` (Hyper-V host) — detect the crash and recover the
+   chaos fault injection (`host/crash-injector/sweep-chaos.sh`).
+3. After reboot, `guest/collect-guest.ps1` — pull dumps, events, context.
+4. `host/collect-from-host.ps1` (Hyper-V host) — detect the crash and recover the
    dump when the guest is frozen or won't boot. On a **libvirt/KVM (KubeVirt)**
-   host use `collect-from-host.sh` instead (same JSON contract).
+   host use `host/collect-from-host.sh` instead (same JSON contract).
 
 ### Chaos testing pipeline
 
 For organic fault injection (not KeBugCheckEx), the sweep loop is:
 revert → start → SSH → [workload] → inject fault → detect crash → collect.
-Chaos triggers may produce no crash (valid outcome). See `vm/sweep-chaos.sh`
-and `data/chaos-triggers.json` for trigger definitions.
+Chaos triggers may produce no crash (valid outcome). See `host/crash-injector/sweep-chaos.sh`
+and `../data/host/chaos-triggers.json` for trigger definitions.
 
 ## Shared library
 
@@ -45,14 +62,14 @@ source-of-truth JSON (`Get-BsodData`), emits the single stdout JSON result
 ## Index
 
 Status: `collect-guest.ps1` is **implemented and verified** against a live
-Windows Server 2025 guest. All 19 bug-check codes in `data/trigger-methods.json`
+Windows Server 2025 guest. All 19 bug-check codes in `data/host/trigger-methods.json`
 have been verified end-to-end using the KeBugCheckEx test driver
-(`src/scripts/crash-injector/sweep-crashme.sh`). `configure-dumps.ps1` (guest, CrashControl registry)
+(`src/scripts/host/crash-injector/sweep-crashme.sh`). `configure-dumps.ps1` (guest, CrashControl registry)
 and `collect-from-host.ps1` (Hyper-V host-side detect + offline VHDX/LiveKd
 dump recovery) are **implemented**. For the Linux/KVM (KubeVirt) target the
 freeze-detect + offline-recovery job is covered by `collect-from-host.sh` (the
 libvirt-native sibling) on top of `host-tools/`, and dump configuration by
-`src/scripts/crash-injector/prep-guest.ps1`.
+`src/scripts/host/crash-injector/prep-guest.ps1`.
 
 ### configure-dumps.ps1  _(guest, elevated)_
 
@@ -60,9 +77,9 @@ libvirt-native sibling) on top of `host-tools/`, and dump configuration by
 on the next BSOD.
 
 **Inputs:** `-DumpType <none|complete|kernel|small|automatic>` (default from
-`data/crash-control.json` recommendation), `-VerifyOnly`.
+`data/guest/crash-control.json` recommendation), `-VerifyOnly`.
 
-**Reads:** `data/crash-control.json`.
+**Reads:** `data/guest/crash-control.json`.
 
 **Output:** `{ ok, action, requestedDumpType, applied?, current, matchesRecommended, rebootRequired, pageFile }`.
 
@@ -86,7 +103,7 @@ Collects dumps from `Minidump\`, `MEMORY.DMP`, and `LiveKernelReports\`.
 resolve the failure bucket + faulting image and populate
 `crash.faultingModule` / `crash.analysis` / `suspectDriver`).
 
-**Reads:** `data/bugcheck-codes.json`, `data/event-sources.json`.
+**Reads:** `data/bugcheck-codes.json`, `data/guest/event-sources.json`.
 
 **Output:** `{ ok, collectedAt, outputDir, system, crash, events, suspectDriver, warnings }`.
 The `crash` object includes `detected` (bool), `crashType` (one of `bugcheck`,
@@ -155,9 +172,9 @@ or `podman` (to run `host-tools/`).
 ```bash
 export LIBVIRT_DEFAULT_URI=qemu:///system
 # 1. Detect a freeze (no disk access):
-./src/scripts/collect-from-host.sh --vm bsod-test --mode detect
+./src/scripts/host/collect-from-host.sh --vm bsod-test --mode detect
 # 2. After powering off a wedged guest (e.g. vmctl.sh kill), recover its dumps:
-./src/scripts/collect-from-host.sh --vm bsod-test --mode recover --out ./output/dumps
+./src/scripts/host/collect-from-host.sh --vm bsod-test --mode recover --out ./output/dumps
 ```
 
 ### parse-dump-header.sh  _(host, Linux/macOS)_
@@ -196,15 +213,15 @@ will catch them.
 
 ---
 
-## Host-side scripts (vm/)
+## Host-side scripts (`host/`)
 
-These live under `vm/` rather than `scripts/` because they run on the Linux/KVM
-host, not inside the Windows guest.
+These live under `host/` because they run on the Linux/KVM host, not inside the
+Windows guest.
 
-### src/scripts/crash-injector/sweep-crashme.sh  _(host, bash)_
+### src/scripts/host/crash-injector/sweep-crashme.sh  _(host, bash)_
 
 **Purpose:** Automated verification sweep of all KeBugCheckEx-triggered
-bug-check codes. Iterates through every code in `data/trigger-methods.json`,
+bug-check codes. Iterates through every code in `data/host/trigger-methods.json`,
 reverts the VM to a snapshot with the CrashMe driver installed, triggers each
 code with exact parameters, waits for reboot, and collects evidence.
 
@@ -220,14 +237,14 @@ pass/fail per code with the observed bug-check code and dump file list.
 **Usage:**
 ```bash
 export LIBVIRT_DEFAULT_URI=qemu:///system
-./src/scripts/crash-injector/sweep-crashme.sh
+./src/scripts/host/crash-injector/sweep-crashme.sh
 ```
 
-### src/scripts/collect-host-signals.sh  _(host, bash)_
+### src/scripts/host/collect-host-signals.sh  _(host, bash)_
 
 **Purpose:** Capture Linux/KVM **host-side** crash-correlation signals that are
 invisible from inside the guest dump. Greps the host kernel log for the patterns
-in `data/host-signals.json` (notably Intel `split lock detection: #AC` traps)
+in `data/host/host-signals.json` (notably Intel `split lock detection: #AC` traps)
 and extracts the guest's Hyper-V enlightenment features (`tlbflush`, `ipi`, ...)
 from the libvirt domain XML. This is the evidence that root-causes
 HYPERVISOR_ERROR (split-lock #AC during the Hyper-V enlightened TLB-flush
@@ -248,7 +265,7 @@ POD=$(oc get pod -n <ns> -l kubevirt.io=virt-launcher,kubevirt.io/created-by \
         -o name | head -n1)   # or: oc get pod -n <ns> | grep virt-launcher-<vm>
 oc debug node/$NODE -- chroot /host dmesg          > kern.log
 oc exec -n <ns> $POD -- virsh dumpxml <ns>_<vm>    > dom.xml
-./src/scripts/collect-host-signals.sh --vm <ns>_<vm> \
+./src/scripts/host/collect-host-signals.sh --vm <ns>_<vm> \
     --log-file kern.log --domain-xml dom.xml
 ```
 
@@ -256,7 +273,7 @@ Prerequisite: the worker node must have split-lock detection enabled
 (`split_lock_detect=warn`/`on`) or the `#AC` line never appears, regardless of
 the crash.
 
-**Reads:** `data/host-signals.json` (kernel-log patterns + Hyper-V feature list;
+**Reads:** `data/host/host-signals.json` (kernel-log patterns + Hyper-V feature list;
 source of truth).
 
 **Requires:** `jq`, and `journalctl`/`dmesg` + `virsh` for live capture.
@@ -266,7 +283,7 @@ source of truth).
 **Usage:**
 ```bash
 export LIBVIRT_DEFAULT_URI=qemu:///system
-./src/scripts/collect-host-signals.sh --vm bsod-test --since "3 hours ago"
+./src/scripts/host/collect-host-signals.sh --vm bsod-test --since "3 hours ago"
 ```
 
 <!-- Template for new entries:
@@ -355,17 +372,58 @@ for a smaller, more reliable pull via `guest-agent.py get`; prints sizes + sha25
 export KUBECONFIG=<cluster kubeconfig>          # e.g. goldman-sachs
 export GA_VM=<vm> GA_NS=<ns>                     # optional; omit if there is a single VMI
 zip -r /tmp/bsod-src.zip src                     # from apps/bsod-detector
-python3 src/scripts/guest-agent.py put /tmp/bsod-src.zip 'C:\Windows\Temp\bsod-src.zip'
-python3 src/scripts/guest-agent.py psfile src/scripts/stage-toolkit.ps1
-python3 src/scripts/guest-agent.py psfile src/scripts/probe-dump-config.ps1   # confirm CrashDumpEnabled=7
-python3 src/scripts/guest-agent.py psfile src/scripts/clear-dumps.ps1
+python3 src/scripts/host/guest-agent.py put /tmp/bsod-src.zip 'C:\Windows\Temp\bsod-src.zip'
+python3 src/scripts/host/guest-agent.py psfile src/scripts/guest/stage-toolkit.ps1
+python3 src/scripts/host/guest-agent.py psfile src/scripts/guest/probe-dump-config.ps1   # confirm CrashDumpEnabled=7
+python3 src/scripts/host/guest-agent.py psfile src/scripts/guest/clear-dumps.ps1
 # --- trigger (async) ---   EF: trigger-bsod.ps1   |   D1: setup-notmyfault.ps1 then notmyfaultc64 /crash 0x01
 # --- while it crashes: loop `virsh screenshot` inside the pod to catch the blue screen ---
-python3 src/scripts/guest-agent.py exec powershell.exe -NoProfile -File 'C:\bsod-detector\src\scripts\collect-guest.ps1'
-python3 src/scripts/guest-agent.py get 'C:\Windows\Minidump\<file>.dmp' ./out/minidump.dmp
-bash src/scripts/parse-dump-header.sh ./out/minidump.dmp                       # offline cross-check
+python3 src/scripts/host/guest-agent.py exec powershell.exe -NoProfile -File 'C:\bsod-detector\src\scripts\guest\collect-guest.ps1'
+python3 src/scripts/host/guest-agent.py get 'C:\Windows\Minidump\<file>.dmp' ./out/minidump.dmp
+bash src/scripts/host/parse-dump-header.sh ./out/minidump.dmp                       # offline cross-check
 # deep analysis (optional): install-debuggers.ps1 -> analyze-dump.ps1 / collect-guest.ps1 -Symbolize
 # full dump (optional): compress-dump.ps1 -> guest-agent.py get MEMORY.DMP.zip
+```
+
+### stakeout.sh  _(host, bash)_ — natural-BSOD campaign runner
+
+**Purpose:** Run a complete natural-BSOD campaign: **preflight → stage → watch →
+escalate → verdict**. Composes the scripts below rather than reimplementing
+them; its own contribution is the two ends of the campaign that were missing —
+gating on preconditions before a long watch, and host-side evidence recovery
+when the guest hard-freezes (`watch-crash.sh` stops there).
+
+**Subcommands:** `preflight` (read-only readiness gate; exits 1 on blockers),
+`stage` (idempotent guest setup), `watch` (preflight + watch + escalate +
+verdict), `escalate` (phase 4 alone, against an already-frozen VM).
+
+**Inputs:** `--ns`, `--vm`, `--out`, `--provider kubevirt|kvm|auto`
+(or `BSOD_DET__HYP_PROV`), `--scenario tlb-flush|any`, `--duration <s>`,
+`--workload <cmd>`, `--workload-guest <ps1>`, `--skip-preflight`, `--dry-run`,
+`--json`, plus `--domain-xml`/`--node-cmdline` to preflight offline against
+captured artifacts. `--interval`/`--miss`/`--node`/`--reboot-wait`/`--burst`
+pass through to `watch-crash.sh`.
+
+**Reads:** nothing directly; delegates to `watch-crash.sh`,
+`capture-host-dump.sh`, `collect-from-host.sh`, `guest-agent.py`.
+
+**Never mutates the VM or the node.** The two hard blockers (Hyper-V
+enlightenments, node `split_lock_detect`) need a VM restart and a MachineConfig
+respectively; preflight prints the remedy and stops.
+
+**Output:** `preflight.json`
+(`{ok, ready, blockers, warnings, checks:[{id,status,detail,remedy}]}`) and
+`stakeout-summary.json`
+(`{ok, verdict, advice, crashDetected, hardFreeze, bugCheck, splitLockDetected, hostRecovery:{method,files}, ...}`).
+Verdicts: `hard-freeze-splitlock`, `hard-freeze-unattributed`,
+`bugcheck-captured`, `crash-no-dump`, `no-crash`.
+
+**Usage:**
+```bash
+export KUBECONFIG=<cluster kubeconfig>
+./src/scripts/host/stakeout.sh preflight --scenario tlb-flush
+./src/scripts/host/stakeout.sh stage
+./src/scripts/host/stakeout.sh watch --out ./output/natural --duration 7200
 ```
 
 ### watch-crash.sh  _(host, bash + oc)_ — natural crash, NO trigger
@@ -426,12 +484,12 @@ export KUBECONFIG=<cluster kubeconfig>          # e.g. goldman-sachs
 # GA_VM/GA_NS are optional — omit them if there is a single VMI on the cluster:
 export GA_VM=<vm> GA_NS=<ns>
 zip -r /tmp/bsod-src.zip src && \
-  python3 src/scripts/guest-agent.py put /tmp/bsod-src.zip 'C:\Windows\Temp\bsod-src.zip' && \
-  python3 src/scripts/guest-agent.py psfile src/scripts/stage-toolkit.ps1
+  python3 src/scripts/host/guest-agent.py put /tmp/bsod-src.zip 'C:\Windows\Temp\bsod-src.zip' && \
+  python3 src/scripts/host/guest-agent.py psfile src/scripts/guest/stage-toolkit.ps1
 
 # then just watch — run the workload/TLB scenario in parallel and wait for it to crash.
 # --ns/--vm are optional (auto-detected with a single VMI):
-./src/scripts/watch-crash.sh --out ./output/natural
+./src/scripts/host/watch-crash.sh --out ./output/natural
 ```
 
 ---
@@ -454,4 +512,7 @@ The suite covers:
   against a synthetic split-lock kernel log
 - `sweep-crashme.sh` argument consistency with `trigger-methods.json`
 - WER bugcheck regex parsing and normalization
+- `stakeout.sh` preflight gating (blocker vs warning per `--scenario`), verdict
+  classification, and backend selection — run against domain-XML/kernel-cmdline
+  fixtures under `--dry-run`, so no cluster, libvirt or VM is needed
 - Cross-compilation build (requires `mingw64-gcc`)

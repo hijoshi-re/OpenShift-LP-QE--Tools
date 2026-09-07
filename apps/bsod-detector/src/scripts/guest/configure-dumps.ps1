@@ -41,7 +41,7 @@ param(
     [switch]$VerifyOnly
 )
 
-. "$PSScriptRoot\lib\Common.ps1"
+. "$PSScriptRoot\..\lib\Common.ps1"
 
 $cfg = Get-BsodData 'crash-control.json'
 

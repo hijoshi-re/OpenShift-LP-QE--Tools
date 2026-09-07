@@ -15,9 +15,9 @@
 # back to GUEST_PASS via sshpass.
 #
 # Usage:
-#   src/scripts/guest-ssh.sh -c 'Get-Date; $env:COMPUTERNAME'     # inline PowerShell
-#   src/scripts/guest-ssh.sh -f path/to/script.ps1 [-- -Arg val]  # run a .ps1 file
-#   echo '<ps>' | src/scripts/guest-ssh.sh                        # PowerShell on stdin
+#   src/scripts/host/guest-ssh.sh -c 'Get-Date; $env:COMPUTERNAME'     # inline PowerShell
+#   src/scripts/host/guest-ssh.sh -f path/to/script.ps1 [-- -Arg val]  # run a .ps1 file
+#   echo '<ps>' | src/scripts/host/guest-ssh.sh                        # PowerShell on stdin
 set -euxo pipefail; shopt -s inherit_errexit
 
 export LIBVIRT_DEFAULT_URI="${LIBVIRT_DEFAULT_URI:-qemu:///system}"
