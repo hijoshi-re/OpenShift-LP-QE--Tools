@@ -7,18 +7,13 @@ values. If a table is wrong, fix it here once and every consumer picks it up.
 
 | File | Consumed by |
 |---|---|
-| `bugcheck-codes.json` | Host-side scripts (parse-dump-header.sh) |
 | `crash-control.json` | Guest-side (configure-dumps.ps1); copied to the guest by preflight-rhov.sh |
 | `event-sources.json` | Reference data only (no active script consumer) |
 | `host-signals.json` | **Host-only** (collect-host-signals.sh) |
 
 ## Files
 
-### `bugcheck-codes.json`
-Bug-check (stop) code -> name + description. Keyed by canonical `0x`-prefixed
-8-digit hex string.
-- **Consumers:** dump parser, collector, any reporting step.
-- Curated subset (test-harness codes + common real-world crashes). Extend as needed.
+
 
 ### `crash-control.json`
 Crash-dump registry configuration under `CrashControl`, dump-type semantics, and
